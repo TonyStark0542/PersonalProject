@@ -1,3 +1,5 @@
+data "google_compute_default_service_account" "default" {}
+
 # =========================================================================
 # RESOURCE 1: The Remote GCS State Storage Vault
 # =========================================================================
@@ -44,8 +46,9 @@ resource "google_compute_instance" "bookstore_vm" {
   # SECURITY: Allow Full API Scopes to completely clear the token cache error
   # =========================================================================
   service_account {
-    email  = "107310806245-compute@developer.gserviceaccount.com"
-    scopes = ["cloud-platform"] # Maps directly to "Allow full access to all Cloud APIs"
+    # Dynamically reads the native project service account email
+    email  = data.google_compute_default_service_account.default.email
+    scopes = ["cloud-platform"]
   }
 
   # =========================================================================
