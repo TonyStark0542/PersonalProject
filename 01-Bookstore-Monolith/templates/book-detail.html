@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Details - {{ book.title }}</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+    <style>
+        /* Simple quick-styling for the AI section */
+        .ai-container {
+            margin-top: 25px;
+            padding: 15px;
+            border-left: 4px solid #34a853;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .ai-btn {
+            background-color: #34a853;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .ai-btn:hover {
+            background-color: #2b8c44;
+        }
+        .ai-response {
+            margin-top: 15px;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .loading-spinner {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div id="logo"><a href="/" class="logo_style">LOGO</a></div>
+            <div class="search-bar">
+                <input type="text" placeholder="Search book by author or publisher....." id="search-input">
+            </div>
+            <div class="header-right">
+                <a href="/">FAQ</a>
+                <a href="/">Track Order</a>
+                <div class="cart-icon">
+                    <a href="/">
+                        <img src="{{ url_for('static', filename='images/cart-icon-1-removebg-preview.png') }}" alt="Cart">
+                    </a>
+                </div>
+                <div class="buttonpos">
+                    <button class="pos">Login</button>
+                </div>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropbtn">Categories</a>
+                    <div class="dropdown-content">
+                        <a href="/category/Classic Literature" data-category="Classic Literature">Classic Literature</a>
+                        <a href="/category/Modern Classics" data-category="Modern Classics">Modern Classics</a>
+                        <a href="/category/Fiction" data-category="Fiction">Fiction</a>
+                        <a href="/category/Contemporary Fiction" data-category="Contemporary Fiction">Contemporary Fiction</a>
+                        <a href="/category/Poetry" data-category="Poetry">Poetry</a>
+                    </div>
+                </li>
+                <li><a href="#">Best Sellers</a></li>
+                <li><a href="#">New Arrivals</a></li>
+                <li><a href="#">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section class="book-details">
+            <div class="book-images">
+                <img src="data:image/jpeg;base64,{{ book.cover_image }}" alt="{{ book.title }} Image">
+            </div>
+            <div class="book-info">
+                <h1 id="book-title">{{ book.title }}</h1>
+                <p>Author: <span id="book-author">{{ book.author }}</span></p>
+                <p>Publisher: <span id="book-publisher">{{ book.publisher }}</span></p>
+                <p>Price: <span id="book-price">${{ book.price }}</span></p>
+                <p>Categories: <span id="book-category">{{ book.category }}</span></p>
+                <p>Stock: <span id="book-stock">{{ book.stock }}</span></p>
+                
+                <div class="ai-container">
+                    <button class="ai-btn" id="generate-ai-btn" onclick="triggerAISummary('{{ book._id }}')">
+                        ✨ Generate AI Summary
+                    </button>
+                    <div class="ai-response" id="ai-response-box" style="display: none;"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer class="footer-container">
+        <div class="footer-links">
+            <ul>
+                <li><a href="#">Privacy Policy</a></li>
+                <li><a href="#">Terms of Service</a></li>
+                <li><a href="#">Refund Policy</a></li>
+                <li><a href="#">FAQ</a></li>
+                <li><a href="#">Contact Us</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script>
+        function triggerAISummary(bookId) {
+            const responseBox = document.getElementById('ai-response-box');
+            const button = document.getElementById('generate-ai-btn');
+            
+            // UI Feedback: Show loading status and disable multiple accidental clicks
+            responseBox.style.display = "block";
+            responseBox.innerHTML = '<span class="loading-spinner">Querying Google Vertex AI (Gemini 2.5 Flash)... Please hold...</span>';
+            button.disabled = true;
+            button.innerText = "Processing...";
+
+            // Send async fetch request to the new Flask API route
+            fetch(`/api/books/${bookId}/summary`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP Error Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.ai_summary) {
+                        // Replace raw newlines with HTML breaks to preserve bulleted structure formatting
+                        responseBox.innerHTML = `<strong>AI Insights & Summary:</strong><br>${data.ai_summary.replace(/\n/g, '<br>')}`;
+                    } else {
+                        responseBox.innerHTML = `<span style="color:red;">Error: ${data.error}</span>`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Pipeline failure:", err);
+                    responseBox.innerHTML = `<span style="color:red;">Failed to retrieve AI insights. Verify your local gcloud authentication status.</span>`;
+                })
+                .finally(() => {
+                    // Reset button interface state
+                    button.disabled = false;
+                    button.innerText = "✨ Regenerate AI Summary";
+                });
+        }
+    </script>
+</body>
+</html>

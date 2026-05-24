@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Category - {{ category_name }}</title>
+    <!-- <link rel="stylesheet" href="C:\\Users\\hmahesh\\OneDrive - Capgemini\\Documents\\Sample_Projects\\static\\css\\index.css"> -->
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div id="logo">
+                <a href="/" class="logo_style">LOGO</a>
+            </div>
+            <div class="search-bar">
+                <input type="text" placeholder="Search book by author or publisher....." id="search-input">
+            </div>
+            <div class="header-right">
+                <a href="/">FAQ</a>
+                <a href="/">Track Order</a>
+                <div class="cart-icon">
+                    <a href="/">
+                        <img src="{{ url_for('static', filename='images/cart-icon-1-removebg-preview.png') }}" alt="Cart">
+                    </a>
+                </div>
+                <div class="buttonpos">
+                    <button class="pos">Login</button>
+                </div>
+            </div>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropbtn">Categories</a>
+                    <div class="dropdown-content">
+                        <a href="/category/Classic Literature" data-category="Classic Literature">Classic Literature</a>
+                        <a href="/category/Modern Classics" data-category="Modern Classicse">Modern Classics</a>
+                        <a href="/category/Fiction" data-category="Fictione">Fiction</a>
+                        <a href="/category/Contemporary Fiction" data-category="Contemporary Fiction">Contemporary Fiction</a>
+                        <a href="/category/Poetry" data-category="Poetry">Poetry</a>
+                    </div>
+                </li>
+                <li><a href="#">Best Sellers</a></li>
+                <li><a href="#">New Arrivals</a></li>
+                <li><a href="#">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <h1 class="heading">{{ category_name }}</h1>
+            <div class="books-grid" id="books-grid">
+                
+                <!-- We are writing JS to display books from DB and we are creating link for each book to display in detail -->
+
+            </div>
+        </section>
+    </main>
+    <footer class="footer-container">
+        <div class="footer-links">
+            <ul>
+                <li><a href="#">Privacy Policy</a></li>
+                <li><a href="#">Terms of Service</a></li>
+                <li><a href="#">Refund Policy</a></li>
+                <li><a href="#">FAQ</a></li>
+                <li><a href="#">Contact Us</a></li>
+            </ul>
+        </div>
+    </footer>
+    <script>
+        // Fetch the category name from the template
+        const categoryName = '{{ category_name }}';
+
+        // Function to load books by category
+        function loadBooksByCategory(categoryName) {
+            fetch(`/api/books/category/${encodeURIComponent(categoryName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    const booksGrid = document.getElementById('books-grid');
+                    booksGrid.innerHTML = '';
+
+                    data.forEach(book => {
+                        const bookItem = document.createElement('div');
+                        bookItem.className = 'book-item';
+
+                        // Create a link for each book item
+                        const link = document.createElement('a');
+                        link.href = `/books/${book._id}`;
+                        link.style.textDecoration = 'none'; // Remove underline
+
+                        const img = document.createElement('img');
+                        img.src = `data:image/jpeg;base64,${book.cover_image}`;
+                        img.alt = book.title || 'Book Image';
+
+                        const title = document.createElement('h4');
+                        title.textContent = book.title.toUpperCase() || 'NO TITLE';
+
+                        const author = document.createElement('p');
+                        author.textContent = book.author || 'No Author';
+
+                        // Append elements to book item
+                        link.appendChild(img);
+                        link.appendChild(title);
+                        link.appendChild(author);
+                        bookItem.appendChild(link);
+
+                        booksGrid.appendChild(bookItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching books:', error));
+        }
+
+        // Load books for the current category
+        loadBooksByCategory(categoryName);
+    </script>
+</body>
+</html>
