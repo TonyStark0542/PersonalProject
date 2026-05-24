@@ -73,7 +73,7 @@ resource "google_compute_instance" "bookstore_vm" {
     
     # 6. Wait for MongoDB initialization, then seed data
     sleep 10
-    docker exec -i mongodb-backend mongorestore --archive=/backup/db_backup.archive
+    docker exec -i mongodb-backend mongorestore --archive=/backup/db_backup.archive --gzip
   EOT
 
   tags = ["http-server", "bookstore-app-node"]
