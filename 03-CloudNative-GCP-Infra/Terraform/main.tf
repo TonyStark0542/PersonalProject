@@ -64,7 +64,7 @@ resource "google_compute_instance" "bookstore_vm" {
     LIVE_KEY="${data.external.fetch_gemini_key.result.key}"
         
     # 3. Pull down your project repository directly onto the application server
-    cd
+    cd /home/ubuntu
     git clone https://github.com/TonyStark0542/PersonalProject.git
     cd PersonalProject/01-Bookstore-Monolith/
     
