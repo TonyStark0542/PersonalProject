@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # SERVICE 1: Your Flask Application Node
+  # ==========================================
+  bookstore-app:
+    build: . # Tells Docker Compose to build the Dockerfile sitting in this current directory
+    container_name: bookstore-frontend-service
+    restart: always
+    ports:
+      - "5000:5000" # Maps public VM port 5000 directly to your Dockerfile's EXPOSE 5000 port
+    environment:
+      # We point the URI string to the database service name defined below
+      - MONGO_URI=mongodb://mongodb-backend:27017/bookstore
+      
+      # CRITICAL: No value assigned after the equals sign!
+      # This tells Docker: "Look at the host VM's shell memory, grab the variable named GEMINI_API_KEY, and inject it."
+      - GEMINI_API_KEY
+    networks:
+      - bookstore-mesh
+    depends_on:
+      - mongodb-backend # Forces MongoDB to start up before Flask begins booting
+
+  # ==========================================
+  # SERVICE 2: Your Persistent MongoDB Node
+  # ==========================================
+  mongodb-backend:
+    image: mongo:4.4.18 # Kept at v4.4 to guarantee hardware compatibility on your GCP VM
+    container_name: mongodb-backend
+    restart: always
+    volumes:
+      # Saves your database records directly onto your machine's hard drive so they survive restarts
+      - bookstore_db_data:/data/db
+      # Mounts your backup directory so you can run 'mongorestore' seamlessly
+      - ./database_backup:/backup
+    networks:
+      - bookstore-mesh
+    # Notice: No 'ports' mapped here. This completely hides MongoDB from the outside world.
+
+# ==========================================
+# INFRASTRUCTURE NETWORKING & VOLUMES MAPPING
+# ==========================================
+networks:
+  bookstore-mesh:
+    driver: bridge # Isolates your multi-container application layer into a private mesh
+
+volumes:
+  bookstore_db_data: # Declares a dedicated, permanent volume block for your database

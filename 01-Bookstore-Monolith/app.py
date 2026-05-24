@@ -2,23 +2,27 @@ from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from google import genai  # The modern unified Google Gen AI SDK
-from dotenv import load_dotenv
 import os
-
-# Load variables from the local .env file into Python's runtime environment
-load_dotenv()
 
 app = Flask(__name__)
 
-# Configure local MongoDB client
-client = MongoClient("mongodb://localhost:27017")
-db = client['bookstore']  
+# Look for an environment variable called 'MONGO_URI'. 
+# If it doesn't exist, fall back to the Docker network name.
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongodb-backend:27017/bookstore")
 
-# Initialize the GenAI Client using the Developer API Key from your local .env
-# Leaving vertexai=False (default) tells the SDK to use the free Google AI Studio path
-ai_client = genai.Client(
-    api_key=os.environ.get("GEMINI_API_KEY")
-)
+client = MongoClient(MONGO_URI)
+db = client['bookstore'] # Access your bookstore database
+
+# 1. Pull the key directly from the environment variables injected by Docker Compose
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# 2. Add an upfront validation gate. If the key is missing, crash the server immediately 
+# on startup so you don't run into confusing 500 errors deep inside your routes later.
+if not GEMINI_API_KEY:
+    raise ValueError("CRITICAL INITIALIZATION ERROR: GEMINI_API_KEY environment variable is completely missing!")
+
+# 3. Initialize the GenAI Client using the verified environment token
+ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 @app.route('/')
 def index():
@@ -54,10 +58,6 @@ def get_book(book_id):
 @app.route('/api/books/<string:book_id>/summary', methods=['GET'])
 def get_book_summary(book_id):
     try:
-        # Verify the key is loading correctly behind the scenes
-        if not os.environ.get("GEMINI_API_KEY"):
-            return jsonify({"error": "Configuration Error: Local API Key missing from .env file"}), 500
-
         # 1. Look up book details from the local MongoDB workspace
         book = db['books'].find_one({'_id': ObjectId(book_id)})
         if not book:
@@ -94,6 +94,8 @@ def get_book_summary(book_id):
     except Exception as e:
         return jsonify({"error": f"Internal pipeline execution error: {str(e)}"}), 500
 
+# ============================================================================================
+
 @app.route('/category/<string:category_name>', methods=['GET'])
 def show_category_page(category_name):
     return render_template('category.html', category_name=category_name)
@@ -112,7 +114,7 @@ def get_books_by_category(category_name):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
 # ============================================================================================
 # Basic Version -1
