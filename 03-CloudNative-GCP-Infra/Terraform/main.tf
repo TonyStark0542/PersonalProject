@@ -1,30 +1,36 @@
+# =========================================================================
+# 1. READ SECRET ON CONTROLLER (Using an External Data Source Hook)
+# =========================================================================
+# Since your controller already has full access to the secret, we fetch it here
+data "external" "fetch_gemini_key" {
+  program = ["sh", "-c", "echo \"{\\\"key\\\":\\\"$(gcloud secrets versions access latest --secret=GEMINI_KEY --format='value(payload.data)')\\\"}\""]
+}
+
 data "google_compute_default_service_account" "default" {}
 
 # =========================================================================
-# RESOURCE 1: The Remote GCS State Storage Vault
+# 2. THE INFRASTRUCTURE STATE BUCKET
 # =========================================================================
 resource "google_storage_bucket" "tf_state_bucket" {
-  name          = "tony-bookstore-tfstate-bucket" # MUST match the provider block string exactly
+  name          = "tony-bookstore-tfstate-bucket"
   location      = "US"
-  force_destroy = false # Acts as the master infrastructure safeguard line
-
+  force_destroy = false
   storage_class = "STANDARD"
   
   versioning {
-    enabled = true # Keeps histories of your state changes to prevent state corruption
-    }
-
+    enabled = true
+  }
   lifecycle {
-    prevent_destroy = true # Safeguard: Terraform will completely block anyone from running destroy on this bucket
+    prevent_destroy = true
   }
 }
 
 # =========================================================================
-# RESOURCE 2: The Production Compute Engine Instance
+# 3. PRODUCTION APPLICATION VM NODE
 # =========================================================================
 resource "google_compute_instance" "bookstore_vm" {
   name         = "bookstore-production-vm"
-  machine_type = "e2-medium" # Provides stable RAM overhead for multi-stage execution loops
+  machine_type = "e2-medium"
   zone         = "us-central1-a"
 
   boot_disk {
@@ -34,25 +40,18 @@ resource "google_compute_instance" "bookstore_vm" {
     }
   }
 
-  # Maps the VM onto your default VPC network topology interface
   network_interface {
     network = "default"
-    access_config {
-      # Leaving this block completely blank assigns a dynamic public External IP
-    }
+    access_config {}
   }
 
-  # =========================================================================
-  # SECURITY: Allow Full API Scopes to completely clear the token cache error
-  # =========================================================================
   service_account {
-    # Dynamically reads the native project service account email
     email  = data.google_compute_default_service_account.default.email
     scopes = ["cloud-platform"]
   }
 
   # =========================================================================
-  # RUNTIME: The Automated Startup Script Layer
+  # RUNTIME WORKAROUND: Injecting the Key Directly Into the Script
   # =========================================================================
   metadata_startup_script = <<-EOT
     #!/bin/bash
@@ -60,25 +59,19 @@ resource "google_compute_instance" "bookstore_vm" {
     # 1. Install Docker Engine and core dependencies
     sudo apt-get update
     sudo apt-get install -y docker.io docker-compose-v2 git
-
-    # 2. Securely fetch your API token from Secret Manager into memory
-    LIVE_KEY=$(gcloud secrets versions access latest --secret="GEMINI_KEY" --format="value(payload.data)")
     
+    # 2. INJECTED WORKAROUND: Terraform drops the raw key text directly here!
+    LIVE_KEY="${data.external.fetch_gemini_key.result.key}"
+        
     # 3. Pull down your project repository directly onto the application server
-    cd /home/ubuntu
+    cd
     git clone https://github.com/TonyStark0542/PersonalProject.git
     cd PersonalProject/01-Bookstore-Monolith/
-
-    # 4. Create the backup folder and move your archive inside it
-    # (Assuming your db_backup.archive is tracked inside your git repo)
-    mkdir -p database_backup
-    mv db_backup.archive database_backup/
-
-    # 5. Launch the entire application stack!
-    # We pass the memory key inline so it injects right as Docker initializes
+    
+    # 5. Launch the entire application stack passing the pre-fetched key
     GEMINI_API_KEY=$LIVE_KEY docker compose up -d
-
-    # 6. Wait 10 seconds for MongoDB to initialize, then seed the data
+    
+    # 6. Wait for MongoDB initialization, then seed data
     sleep 10
     docker exec -i mongodb-backend mongorestore --archive=/backup/db_backup.archive
   EOT
@@ -87,25 +80,19 @@ resource "google_compute_instance" "bookstore_vm" {
 }
 
 # =========================================================================
-# RESOURCE 3: Firewall Rule to Open Port 5000 for Public Web Traffic
+# 4. NETWORKING PERIMETER FIREWALL GATE
 # =========================================================================
 resource "google_compute_firewall" "allow_flask_traffic" {
-  name    = "allow-bookstore-flask-port"
-  network = "default" # Binds this rule straight onto your default VPC network layout
-
-  # Defines the structural flow rule parameter mapping
+  name          = "allow-bookstore-flask-port"
+  network       = "default"
   direction     = "INGRESS"
   priority      = 1000
-  source_ranges = ["0.0.0.0/0"] # Open to the public internet so users can browse the store
+  source_ranges = ["0.0.0.0/0"]
 
   allow {
     protocol = "tcp"
-    ports    = ["5000"] # Opens the precise execution port your Dockerfile exposes
+    ports    = ["5000"]
   }
 
-  # =========================================================================
-  # TARGET TAGS: The Network Gluing Mechanism
-  # =========================================================================
-  # This rule will ONLY apply to virtual machines that carry this exact tag string!
   target_tags = ["bookstore-app-node"]
 }
