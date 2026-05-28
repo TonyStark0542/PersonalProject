@@ -79,7 +79,11 @@ resource "google_compute_instance" "bookstore_vm" {
     cd PersonalProject/01-Bookstore-Monolith/
     
     # 4. Launch the entire application stack passing the pre-fetched key
-    GEMINI_API_KEY=$LIVE_KEY docker compose up -d
+    # AUTOMATION: Terraform writes the .env file directly onto the production disk!
+    echo "GEMINI_API_KEY=${var.gemini_api_key}" > .env
+
+    # Launch the containers cleanly with the file in place
+    sudo docker compose up -d
     
     # 5. Wait for MongoDB initialization, then seed data
     sleep 10
