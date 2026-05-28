@@ -34,15 +34,10 @@ pipeline {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
                     echo '🔍 Extracting secret file and computing architectural plan...'
                     
-                    // CRITICAL: Wrap the plan inside withCredentials so it can satisfy the new variable requirement
                     withCredentials([file(credentialsId: 'GCP_SECRET_FILE_KEY', variable: 'SECRET_FILE_PATH')]) {
-                        sh '''
-                            RAW_KEY=$(cat "$SECRET_FILE_PATH")
-                            
-                            terraform plan \
-                              -var="gcp_project_id=${params.GCP_PROJECT_ID}" \
-                              -var="gemini_api_key=$RAW_KEY"
-                        '''
+                        // Notice the use of double quotes on the outside to allow ${params.GCP_PROJECT_ID}
+                        sh "Standard_Key=\$(cat '${SECRET_FILE_PATH}') && " +
+                           "terraform plan -var='gcp_project_id=${params.GCP_PROJECT_ID}' -var='gemini_api_key=\${Standard_Key}'"
                     }
                 }
             }
@@ -51,18 +46,12 @@ pipeline {
         stage('4. Deploy Infrastructure & Inject Key') {
             steps {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
-                    echo '🚀 Extracting secret file and passing key to Terraform...'
+                    echo '🚀 Extracting secret file and passing key to Terraform Apply...'
                     
                     withCredentials([file(credentialsId: 'GCP_SECRET_FILE_KEY', variable: 'SECRET_FILE_PATH')]) {
-                        sh '''
-                            RAW_KEY=$(cat "$SECRET_FILE_PATH")
-                            
-                            # Pass BOTH variables into Terraform dynamically
-                            terraform apply \
-                              -var="gcp_project_id=${params.GCP_PROJECT_ID}" \
-                              -var="gemini_api_key=$RAW_KEY" \
-                              -auto-approve
-                        '''
+                        // We chain the bash commands with an escaped backslash on the key variable \${Standard_Key}
+                        sh "Standard_Key=\$(cat '${SECRET_FILE_PATH}') && " +
+                           "terraform apply -var='gcp_project_id=${params.GCP_PROJECT_ID}' -var='gemini_api_key=\${Standard_Key}' -auto-approve"
                     }
                 }
             }
