@@ -14,19 +14,19 @@ data "google_compute_default_service_account" "default" {
 # =========================================================================
 # 2. THE INFRASTRUCTURE STATE BUCKET
 # =========================================================================
-resource "google_storage_bucket" "tf_state_bucket" {
-  name          = "tony-bookstore-tfstate-bucket-${var.gcp_project_id}"
-  location      = "US"
-  force_destroy = false
-  storage_class = "STANDARD"
-  
-  versioning {
-    enabled = true
-  }
-  lifecycle {
-    prevent_destroy = true
-  }
-}
+#resource "google_storage_bucket" "tf_state_bucket" {
+#  name          = "tony-bookstore-tfstate-bucket-${var.gcp_project_id}"
+#  location      = "US"
+#  force_destroy = false
+#  storage_class = "STANDARD"
+#  
+#  versioning {
+#    enabled = true
+#  }
+#  lifecycle {
+#    prevent_destroy = true
+#  }
+#}
 
 # =========================================================================
 # 3. PRODUCTION APPLICATION VM NODE
