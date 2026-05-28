@@ -16,7 +16,7 @@ data "external" "fetch_gemini_key" {
   program = ["sh", "-c", "echo \"{\\\"key\\\":\\\"$(gcloud secrets versions access latest --secret=GEMINI_KEY --format='value(payload.data)')\\\"}\""]
 }
 
-data "google_compute_default_service_account" "default" {}
+# data "google_compute_default_service_account" "default" {}
 
 # =========================================================================
 # 2. THE INFRASTRUCTURE STATE BUCKET
