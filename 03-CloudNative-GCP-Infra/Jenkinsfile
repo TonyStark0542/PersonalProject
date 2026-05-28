@@ -1,0 +1,61 @@
+pipeline {
+    // Executes commands directly on your Ubuntu VM host to inherit GCP permissions
+    agent any
+
+    // Creates the input dashboard interface inside the Jenkins UI
+    parameters {
+        string(name: 'GCP_PROJECT_ID', defaultValue: '', description: 'Paste your active rotating playground project ID string here')
+    }
+
+    environment {
+        // Forces Terraform to run smoothly without prompting for user inputs
+        TF_IN_AUTOMATION = 'true'
+    }
+
+    stages {
+        stage('1. Sync Source Code') {
+            steps {
+                echo '📥 Pulling latest code manifests from your GitHub repository...'
+                checkout scm
+            }
+        }
+
+        stage('2. Initialize Terraform') {
+            steps {
+                // dir() forces Jenkins to step inside your subfolder before running commands
+                dir('03-CloudNative-GCP-Infra/Terraform') {
+                    echo '🏗️ Clearing cache and reconfiguring local backend tracks...'
+                    sh '''
+                        rm -rf .terraform/ .terraform.lock.hcl
+                        terraform init -reconfigure
+                    '''
+                }
+            }
+        }
+
+        stage('3. Verification Plan') {
+            steps {
+                dir('03-CloudNative-GCP-Infra/Terraform') {
+                    echo '🔍 Computing architectural changes...'
+                    // Double quotes allow Groovy to dynamically inject your Project ID parameter string
+                    sh "terraform plan -var='gcp_project_id=${params.GCP_PROJECT_ID}'"
+                }
+            }
+        }
+
+        stage('4. Deploy Infrastructure') {
+            steps {
+                dir('03-CloudNative-GCP-Infra/Terraform') {
+                    echo '🚀 Launching application infrastructure via native VM identity...'
+                    sh "terraform apply -var='gcp_project_id=${params.GCP_PROJECT_ID}' -auto-approve"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo '🧹 Pipeline execution sequence complete.'
+        }
+    }
+}
