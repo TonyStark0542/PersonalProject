@@ -41,17 +41,17 @@ pipeline {
         stage('4. Deploy Infrastructure & Inject Key') {
             steps {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
-                    echo '🚀 Extracting secret file from vault and writing .env block...'
+                    echo '🚀 Extracting secret file and passing key to Terraform...'
                     
-                    // This binds your uploaded Jenkins secret file to a temporary system path variable ($SECRET_FILE_PATH)
                     withCredentials([file(credentialsId: 'GCP_SECRET_FILE_KEY', variable: 'SECRET_FILE_PATH')]) {
                         sh '''
-                            # 1. Read the raw text inside your secret file and write it directly into the application's .env file
                             RAW_KEY=$(cat "$SECRET_FILE_PATH")
-                            echo "GEMINI_API_KEY=$RAW_KEY" > ../../01-Bookstore-Monolith/.env
                             
-                            # 2. Fire off your automated Terraform execution loop
-                            terraform apply -var="gcp_project_id=${params.GCP_PROJECT_ID}" -auto-approve
+                            # Pass BOTH variables into Terraform dynamically
+                            terraform apply \
+                              -var="gcp_project_id=${params.GCP_PROJECT_ID}" \
+                              -var="gemini_api_key=$RAW_KEY" \
+                              -auto-approve
                         '''
                     }
                 }
