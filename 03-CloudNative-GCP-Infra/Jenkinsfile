@@ -1,14 +1,11 @@
 pipeline {
-    // Executes commands directly on your Ubuntu VM host to inherit GCP permissions
     agent any
 
-    // Creates the input dashboard interface inside the Jenkins UI
     parameters {
         string(name: 'GCP_PROJECT_ID', defaultValue: '', description: 'Paste your active rotating playground project ID string here')
     }
 
     environment {
-        // Forces Terraform to run smoothly without prompting for user inputs
         TF_IN_AUTOMATION = 'true'
     }
 
@@ -22,7 +19,6 @@ pipeline {
 
         stage('2. Initialize Terraform') {
             steps {
-                // dir() forces Jenkins to step inside your subfolder before running commands
                 dir('03-CloudNative-GCP-Infra/Terraform') {
                     echo '🏗️ Clearing cache and reconfiguring local backend tracks...'
                     sh '''
@@ -37,17 +33,27 @@ pipeline {
             steps {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
                     echo '🔍 Computing architectural changes...'
-                    // Double quotes allow Groovy to dynamically inject your Project ID parameter string
                     sh "terraform plan -var='gcp_project_id=${params.GCP_PROJECT_ID}'"
                 }
             }
         }
 
-        stage('4. Deploy Infrastructure') {
+        stage('4. Deploy Infrastructure & Inject Key') {
             steps {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
-                    echo '🚀 Launching application infrastructure via native VM identity...'
-                    sh "terraform apply -var='gcp_project_id=${params.GCP_PROJECT_ID}' -auto-approve"
+                    echo '🚀 Extracting secret file from vault and writing .env block...'
+                    
+                    // This binds your uploaded Jenkins secret file to a temporary system path variable ($SECRET_FILE_PATH)
+                    withCredentials([file(credentialsId: 'GCP_SECRET_FILE_KEY', variable: 'SECRET_FILE_PATH')]) {
+                        sh '''
+                            # 1. Read the raw text inside your secret file and write it directly into the application's .env file
+                            RAW_KEY=$(cat "$SECRET_FILE_PATH")
+                            echo "GEMINI_API_KEY=$RAW_KEY" > ../../01-Bookstore-Monolith/.env
+                            
+                            # 2. Fire off your automated Terraform execution loop
+                            terraform apply -var="gcp_project_id=${params.GCP_PROJECT_ID}" -auto-approve
+                        '''
+                    }
                 }
             }
         }
@@ -55,7 +61,7 @@ pipeline {
 
     post {
         always {
-            echo '🧹 Pipeline execution sequence complete.'
+            echo '🧹 Pipeline execution sequence complete. Cleaning workspace environmental variables...'
         }
     }
 }
