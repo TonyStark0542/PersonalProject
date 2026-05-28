@@ -32,8 +32,18 @@ pipeline {
         stage('3. Verification Plan') {
             steps {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
-                    echo '🔍 Computing architectural changes...'
-                    sh "terraform plan -var='gcp_project_id=${params.GCP_PROJECT_ID}'"
+                    echo '🔍 Extracting secret file and computing architectural plan...'
+                    
+                    // CRITICAL: Wrap the plan inside withCredentials so it can satisfy the new variable requirement
+                    withCredentials([file(credentialsId: 'GCP_SECRET_FILE_KEY', variable: 'SECRET_FILE_PATH')]) {
+                        sh '''
+                            RAW_KEY=$(cat "$SECRET_FILE_PATH")
+                            
+                            terraform plan \
+                              -var="gcp_project_id=${params.GCP_PROJECT_ID}" \
+                              -var="gemini_api_key=$RAW_KEY"
+                        '''
+                    }
                 }
             }
         }
