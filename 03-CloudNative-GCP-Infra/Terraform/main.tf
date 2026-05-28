@@ -11,13 +11,6 @@ data "google_compute_default_service_account" "default" {
   depends_on = [null_resource.enable_api_bootstrap]
 }
 
-# Dynamically fetches the Gemini token using your controller shell's context
-data "external" "fetch_gemini_key" {
-  program = ["sh", "-c", "echo \"{\\\"key\\\":\\\"$(gcloud secrets versions access latest --secret=GEMINI_KEY --format='value(payload.data)')\\\"}\""]
-}
-
-# data "google_compute_default_service_account" "default" {}
-
 # =========================================================================
 # 2. THE INFRASTRUCTURE STATE BUCKET
 # =========================================================================
@@ -69,23 +62,20 @@ resource "google_compute_instance" "bookstore_vm" {
     # 1. Install Docker Engine and core dependencies
     sudo apt-get update
     sudo apt-get install -y docker.io docker-compose-v2 git
-    
-    # 2. INJECTED WORKAROUND: Terraform drops the raw key text directly here!
-    LIVE_KEY="${data.external.fetch_gemini_key.result.key}"
         
-    # 3. Pull down your project repository directly onto the application server
+    # 2. Pull down your project repository directly onto the application server
     cd /home/ubuntu
     git clone https://github.com/TonyStark0542/PersonalProject.git
     cd PersonalProject/01-Bookstore-Monolith/
     
-    # 4. Launch the entire application stack passing the pre-fetched key
+    # 3. Launch the entire application stack passing the pre-fetched key
     # AUTOMATION: Terraform writes the .env file directly onto the production disk!
     echo "GEMINI_API_KEY=${var.gemini_api_key}" > .env
 
     # Launch the containers cleanly with the file in place
     sudo docker compose up -d
     
-    # 5. Wait for MongoDB initialization, then seed data
+    # 4. Wait for MongoDB initialization, then seed data
     sleep 10
     docker exec -i mongodb-backend mongorestore --archive=/backup/db_backup.archive --gzip
   EOT
