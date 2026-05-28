@@ -1,7 +1,17 @@
 # =========================================================================
-# 1. READ SECRET ON CONTROLLER (Using an External Data Source Hook)
+# 1. RUNTIME API BOOTSTRAPPER & NATIVE SERVICE ACCOUNT DATA SOURCE
 # =========================================================================
-# Since your controller already has full access to the secret, we fetch it here
+resource "null_resource" "enable_api_bootstrap" {
+  provisioner "local-exec" {
+    command = "gcloud services enable iam.googleapis.com"
+  }
+}
+
+data "google_compute_default_service_account" "default" {
+  depends_on = [null_resource.enable_api_bootstrap]
+}
+
+# Dynamically fetches the Gemini token using your controller shell's context
 data "external" "fetch_gemini_key" {
   program = ["sh", "-c", "echo \"{\\\"key\\\":\\\"$(gcloud secrets versions access latest --secret=GEMINI_KEY --format='value(payload.data)')\\\"}\""]
 }
@@ -12,7 +22,7 @@ data "google_compute_default_service_account" "default" {}
 # 2. THE INFRASTRUCTURE STATE BUCKET
 # =========================================================================
 resource "google_storage_bucket" "tf_state_bucket" {
-  name          = "tony-bookstore-tfstate-bucket"
+  name          = "tony-bookstore-tfstate-bucket-${var.gcp_project_id}"
   location      = "US"
   force_destroy = false
   storage_class = "STANDARD"
@@ -30,8 +40,8 @@ resource "google_storage_bucket" "tf_state_bucket" {
 # =========================================================================
 resource "google_compute_instance" "bookstore_vm" {
   name         = "bookstore-production-vm"
-  machine_type = "e2-medium"
-  zone         = "us-central1-a"
+  machine_type = var.machine_type
+  zone         = var.gcp_zone
 
   boot_disk {
     initialize_params {
@@ -68,10 +78,10 @@ resource "google_compute_instance" "bookstore_vm" {
     git clone https://github.com/TonyStark0542/PersonalProject.git
     cd PersonalProject/01-Bookstore-Monolith/
     
-    # 5. Launch the entire application stack passing the pre-fetched key
+    # 4. Launch the entire application stack passing the pre-fetched key
     GEMINI_API_KEY=$LIVE_KEY docker compose up -d
     
-    # 6. Wait for MongoDB initialization, then seed data
+    # 5. Wait for MongoDB initialization, then seed data
     sleep 10
     docker exec -i mongodb-backend mongorestore --archive=/backup/db_backup.archive --gzip
   EOT
@@ -91,7 +101,7 @@ resource "google_compute_firewall" "allow_flask_traffic" {
 
   allow {
     protocol = "tcp"
-    ports    = ["5000"]
+    ports    = [var.app_port]
   }
 
   target_tags = ["bookstore-app-node"]

@@ -17,7 +17,7 @@ terraform {
 }
 
 provider "google" {
-  project = "playground-s-11-f8c50af2" # Replace with your exact GCP Project ID
-  region  = "us-central1"
-  zone    = "us-central1-a"
+  project = var.gcp_project_id
+  region  = var.gcp_region
+  zone    = var.gcp_zone
 }
