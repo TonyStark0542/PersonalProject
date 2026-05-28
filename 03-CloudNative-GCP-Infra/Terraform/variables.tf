@@ -1,7 +1,7 @@
 variable "gcp_project_id" {
   type        = string
   description = "The specific ID of your active GCP playground project workspace"
-  default     = "playground-s-11-3a009c92" # Put your active project ID here
+  default     = "playground-s-11-5320c2a2" # Put your active project ID here
 }
 
 variable "gcp_region" {
