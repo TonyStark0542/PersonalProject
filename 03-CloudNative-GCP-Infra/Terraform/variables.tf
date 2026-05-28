@@ -27,3 +27,9 @@ variable "app_port" {
   description = "The ingress public delivery port exposed by your Docker architecture"
   default     = "5000"
 }
+
+variable "gemini_api_key" {
+  type        = string
+  description = "The Gemini API Key injected from the Jenkins vault"
+  sensitive   = true
+}
