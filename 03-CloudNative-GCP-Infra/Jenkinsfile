@@ -2,11 +2,19 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'GCP_PROJECT_ID', defaultValue: '', description: 'Paste your active rotating playground project ID string here')
+        string(
+            name: 'GCP_PROJECT_ID',
+            defaultValue: '',
+            description: 'Paste your active rotating playground project ID string here'
+        )
     }
 
     environment {
-        TF_IN_AUTOMATION = 'true'
+        TF_IN_AUTOMATION      = 'true'
+        // Terraform automatically reads any TF_VAR_ prefixed env variable.
+        // This maps directly to var.gcp_project_id in your variables.tf.
+        // Since this is not a secret, Groovy interpolation here is fine.
+        TF_VAR_gcp_project_id = "${params.GCP_PROJECT_ID}"
     }
 
     stages {
@@ -32,12 +40,17 @@ pipeline {
         stage('3. Verification Plan') {
             steps {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
-                    echo '🔍 Extracting secret file and computing architectural plan...'
-                    
-                    withCredentials([file(credentialsId: 'GCP_SECRET_FILE_KEY', variable: 'SECRET_FILE_PATH')]) {
-                        // Notice the use of double quotes on the outside to allow ${params.GCP_PROJECT_ID}
-                        sh "Standard_Key=\$(cat '${SECRET_FILE_PATH}') && " +
-                           "terraform plan -var='gcp_project_id=${params.GCP_PROJECT_ID}' -var='gemini_api_key=\${Standard_Key}'"
+                    echo '🔍 Computing architectural plan...'
+
+                    // withCredentials injects the secret directly as an
+                    // environment variable named TF_VAR_gemini_api_key.
+                    // Terraform reads it automatically — no -var flag needed.
+                    withCredentials([
+                        string(credentialsId: 'GEMINI_API_KEY', variable: 'TF_VAR_gemini_api_key')
+                    ]) {
+                        // Single quotes — Groovy touches nothing in this block.
+                        // Both TF_VAR_ variables are already in the environment.
+                        sh 'terraform plan'
                     }
                 }
             }
@@ -46,12 +59,12 @@ pipeline {
         stage('4. Deploy Infrastructure & Inject Key') {
             steps {
                 dir('03-CloudNative-GCP-Infra/Terraform') {
-                    echo '🚀 Extracting secret file and passing key to Terraform Apply...'
-                    
-                    withCredentials([file(credentialsId: 'GCP_SECRET_FILE_KEY', variable: 'SECRET_FILE_PATH')]) {
-                        // We chain the bash commands with an escaped backslash on the key variable \${Standard_Key}
-                        sh "Standard_Key=\$(cat '${SECRET_FILE_PATH}') && " +
-                           "terraform apply -var='gcp_project_id=${params.GCP_PROJECT_ID}' -var='gemini_api_key=\${Standard_Key}' -auto-approve"
+                    echo '🚀 Deploying infrastructure and injecting key into VM startup script...'
+
+                    withCredentials([
+                        string(credentialsId: 'GEMINI_API_KEY', variable: 'TF_VAR_gemini_api_key')
+                    ]) {
+                        sh 'terraform apply -auto-approve'
                     }
                 }
             }
@@ -60,7 +73,7 @@ pipeline {
 
     post {
         always {
-            echo '🧹 Pipeline execution sequence complete. Cleaning workspace environmental variables...'
+            echo '🧹 Pipeline execution sequence complete. Cleaning workspace...'
         }
     }
 }
